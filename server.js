@@ -73,9 +73,9 @@ function insertMachineData() {
       restTime = Math.floor(Math.random() * 120) + 30;
     }
 
-    const insertMachineQuery = `
-      INSERT INTO machines (name, status, spindle_speed, power_consumption, rest_time, date, timestamp)
-      VALUES (?, ?, ?, ?, ?, ?, NOW())
+   const insertMachineQuery = `
+    INSERT INTO machines (name, status, spindle_speed, power_consumption, rest_time, date)
+    VALUES (?, ?, ?, ?, ?, ?)
     `;
 
     db.query(insertMachineQuery, [name, status, spindleSpeed, power, restTime, currentDate], (err) => {
