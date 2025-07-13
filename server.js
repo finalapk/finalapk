@@ -291,8 +291,6 @@
 //   console.log(`🚀 Server running on http://localhost:${port}`);
 // });
 
-
-// server.js
 const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
@@ -302,25 +300,26 @@ const cron = require('node-cron');
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 10000;
 
-// ✅ Environment Fallbacks
+// ✅ Hardcoded values
+const PORT = 10000;
+const RENDER_EXTERNAL_URL = 'finalapk.onrender.com';
+
 const {
-  MYSQLHOST = 'localhost',
-  MYSQLUSER = 'root',
-  MYSQLPASSWORD = '',
-  MYSQLDATABASE = 'cnc_data',
-  MYSQLPORT = 3306,
-  RENDER_EXTERNAL_URL = 'finalapk.onrender.com',
+  MYSQLHOST,
+  MYSQLPORT,
+  MYSQLUSER,
+  MYSQLPASSWORD,
+  MYSQLDATABASE,
 } = process.env;
 
-// ✅ MySQL Connection Pool
+// ✅ MySQL connection pool
 const pool = mysql.createPool({
   host: MYSQLHOST,
+  port: MYSQLPORT,
   user: MYSQLUSER,
   password: MYSQLPASSWORD,
   database: MYSQLDATABASE,
-  port: MYSQLPORT,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -330,7 +329,7 @@ const pool = mysql.createPool({
 app.use(cors());
 app.use(express.json());
 
-// ✅ Generic API: Get latest entry
+// ✅ Generic API: get latest record from allowed table
 app.get('/latest/:table', async (req, res) => {
   try {
     const { table } = req.params;
@@ -350,14 +349,14 @@ app.get('/latest/:table', async (req, res) => {
       [name, date]
     );
 
-    res.json(rows);
+    res.json(rows[0] || {});
   } catch (err) {
-    console.error('❌ Error fetching latest record:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('❌ Error fetching data:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
-// ✅ CRON: Dummy insert every 30s
+// ✅ CRON: Insert dummy data into `machines` every 30 seconds
 cron.schedule('*/30 * * * * *', async () => {
   try {
     const now = new Date();
@@ -366,22 +365,15 @@ cron.schedule('*/30 * * * * *', async () => {
 
     const name = nameList[Math.floor(Math.random() * nameList.length)];
     const status = statusList[Math.floor(Math.random() * statusList.length)];
-
     const spindle = status === 'Running' ? Math.floor(2500 + Math.random() * 1000) : 0;
     const power = status === 'Running' ? parseFloat((7 + Math.random() * 3).toFixed(1)) : 0.1;
     const rest = status === 'Idle' ? Math.floor(Math.random() * 100) : Math.floor(Math.random() * 10);
+    const dateStr = now.toISOString().split('T')[0];
+    const timestamp = now.toISOString().slice(0, 19).replace('T', ' ');
 
     await pool.execute(
       'INSERT INTO machines (name, status, spindle_speed, power_consumption, rest_time, date, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [
-        name,
-        status,
-        spindle,
-        power,
-        rest,
-        now.toISOString().split('T')[0],
-        now.toISOString().slice(0, 19).replace('T', ' ')
-      ]
+      [name, status, spindle, power, rest, dateStr, timestamp]
     );
 
     console.log(`[CRON] ✅ Inserted dummy data for ${name} at ${now.toLocaleTimeString()}`);
@@ -390,7 +382,7 @@ cron.schedule('*/30 * * * * *', async () => {
   }
 });
 
-// ✅ CRON: Self-ping every 10 mins
+// ✅ CRON: Self-ping every 10 minutes
 cron.schedule('*/10 * * * *', async () => {
   try {
     const res = await fetch(`https://${RENDER_EXTERNAL_URL}`);
@@ -400,7 +392,7 @@ cron.schedule('*/10 * * * *', async () => {
   }
 });
 
-// ✅ Start Server
+// ✅ Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📡 Connected to MySQL at ${MYSQLHOST}:${MYSQLPORT} with database "${MYSQLDATABASE}"`);
