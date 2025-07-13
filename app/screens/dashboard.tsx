@@ -1,4 +1,4 @@
-// app/screens/dashboard.tsx
+// app/screens/Dashboard.tsx
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import NetInfo from '@react-native-community/netinfo';
@@ -28,8 +28,8 @@ import { getMachineDataOffline, saveMachineDataOffline } from '../../utils/machi
 
 const screenWidth = Dimensions.get('window').width;
 const logo = require('../../assets/images/Logo.png');
-const BASE_URL = 'https://cncofflinemode.onrender.com';
-const API_URL = `${BASE_URL}/machines`;
+const BASE_URL = 'https://finalapk.onrender.com';
+const API_URL = `${BASE_URL}/latest/machines`;
 const machineList = ['Machine 01', 'Machine 02', 'Machine 03'];
 
 const AnimatedSvgLine = Animated.createAnimatedComponent(SvgLine);
@@ -101,7 +101,14 @@ export default function Dashboard() {
 
     fetchMachineData();
 
-    return () => unsubscribe();
+    const interval = setInterval(() => {
+      fetchMachineData();
+    }, 30000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
   }, [selectedMachine, date]);
 
   const fetchMachineData = async () => {
@@ -109,29 +116,26 @@ export default function Dashboard() {
 
     if (isOnline) {
       try {
-        const res = await fetch(
-          `${API_URL}?name=${encodeURIComponent(selectedMachine)}&date=${formattedDate}`
-        );
-        const json = await res.json();
+        const res = await fetch(`${API_URL}?name=${encodeURIComponent(selectedMachine)}&date=${formattedDate}`);
+        const rows = await res.json();
+        const latest = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 
-        if (json.length > 0) {
-          const data = json[0];
-          setMachineData(data);
+        if (latest) {
+          setMachineData(latest);
           setLastUpdated(new Date());
-
           await saveMachineDataOffline(
-            data.name,
+            latest.name,
             formattedDate,
-            data.spindle_speed,
-            data.rest_time,
-            data.power_consumption,
-            data.status
+            latest.spindle_speed,
+            latest.rest_time,
+            latest.power_consumption,
+            latest.status
           );
         } else {
           setMachineData(null);
         }
-      } catch (err) {
-        console.warn('Fetch failed. Trying offline...');
+      } catch (error) {
+        console.warn('❌ Fetch failed, using offline data.');
         getOfflineData(formattedDate);
       }
     } else {
@@ -144,10 +148,10 @@ export default function Dashboard() {
     if (cached) {
       setMachineData(cached);
       setLastUpdated(new Date(cached.updated_at || new Date()));
-      Alert.alert('Offline Mode', 'Showing cached data.');
+      Alert.alert('Offline Mode', 'Showing last saved data.');
     } else {
       setMachineData(null);
-      Alert.alert('No Data', 'No offline data found for this selection.');
+      Alert.alert('No Offline Data', 'No cached data available.');
     }
   };
 
@@ -162,14 +166,10 @@ export default function Dashboard() {
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'running':
-        return '#00B386';
-      case 'idle':
-        return '#fbbf24';
-      case 'error':
-        return '#ef4444';
-      default:
-        return '#6b7280';
+      case 'running': return '#00B386';
+      case 'idle': return '#fbbf24';
+      case 'error': return '#ef4444';
+      default: return '#6b7280';
     }
   };
 
@@ -178,15 +178,14 @@ export default function Dashboard() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#0D0D0D' }]}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={toggleDrawer} style={styles.menuButton}>
           <MaterialCommunityIcons name="menu" size={28} color="#fff" />
         </TouchableOpacity>
-
         <TouchableOpacity onPress={() => Linking.openURL('https://indxo.ai')}>
           <Image source={logo} style={styles.logo} resizeMode="contain" />
         </TouchableOpacity>
-
         <MaterialCommunityIcons
           name={isOnline ? 'wifi' : 'wifi-off'}
           size={22}
@@ -194,19 +193,18 @@ export default function Dashboard() {
         />
       </View>
 
+      {/* Title & Last Updated */}
       <Text style={styles.title}>Dashboard</Text>
       {lastUpdated && (
-        <Text style={styles.lastUpdated}>
-          Last updated: {lastUpdated.toLocaleTimeString()}
-        </Text>
+        <Text style={styles.lastUpdated}>Last updated: {lastUpdated.toLocaleTimeString()}</Text>
       )}
 
+      {/* Scroll Section */}
       <ScrollView
         contentContainerStyle={{ paddingBottom: 30 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00e0ff" />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00e0ff" />}
       >
+        {/* Machine Dropdown + Date */}
         <View style={styles.filterRow}>
           <View style={{ flex: 1 }}>
             <TouchableOpacity
@@ -239,6 +237,7 @@ export default function Dashboard() {
           </TouchableOpacity>
         </View>
 
+        {/* Date Picker */}
         {showPicker && (
           <DateTimePicker
             value={date}
@@ -251,14 +250,13 @@ export default function Dashboard() {
           />
         )}
 
+        {/* Data Section */}
         {machineData ? (
           <>
             <View style={styles.rowHeader}>
               <Text style={styles.machineName}>{machineData.name}</Text>
-              <View
-                style={[styles.statusBadge, { backgroundColor: getStatusColor(machineData.status) }]}
-              >
-                <Text style={styles.statusText}>{machineData.status.toUpperCase()}</Text>
+              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(machineData.status) }]}>
+                <Text style={styles.statusText}>{machineData.status?.toUpperCase()}</Text>
               </View>
             </View>
 
@@ -274,10 +272,7 @@ export default function Dashboard() {
               <View style={styles.metricCard}>
                 <Text style={styles.label}>REST TIME</Text>
                 <Text style={styles.value}>
-                  {Math.floor(machineData.rest_time / 60)
-                    .toString()
-                    .padStart(2, '0')}
-                  :
+                  {Math.floor(machineData.rest_time / 60).toString().padStart(2, '0')}:
                   {(machineData.rest_time % 60).toString().padStart(2, '0')}
                 </Text>
               </View>
@@ -321,12 +316,11 @@ export default function Dashboard() {
             />
           </>
         ) : (
-          <Text style={{ color: '#aaa', marginTop: 20, alignSelf: 'center' }}>
-            No data found.
-          </Text>
+          <Text style={{ color: '#aaa', marginTop: 20, alignSelf: 'center' }}>No data found.</Text>
         )}
       </ScrollView>
 
+      {/* Drawer Overlay */}
       {drawerOpen && (
         <Pressable style={styles.drawerOverlay} onPress={closeDrawer}>
           <CustomDrawer onClose={closeDrawer} />
