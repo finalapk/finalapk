@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "sqliteApp",
-    "slug": "sqliteApp",
+    "name": "finalapk",
+    "slug": "finalapk",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/indxoapkicon.png",
@@ -16,10 +16,11 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/indxoapkicon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.yourname.finalapk"
     },
     "web": {
       "favicon": "./assets/images/indxoapkicon.png"
@@ -27,6 +28,12 @@
     "plugins": [
       "expo-sqlite",
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "03b20b8d-8dc8-41c1-b0c0-227e76d92a83"
+      }
+    }
   }
 }
