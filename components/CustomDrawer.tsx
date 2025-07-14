@@ -2,7 +2,7 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { logoutUser } from '../utils/authDB';
+import { clearAuthStatus } from '../utils/authStatusDB'; // ✅ Updated import
 
 type DrawerItem = {
   label: string;
@@ -16,7 +16,7 @@ const drawerItems: DrawerItem[] = [
   { label: 'Spindle Chart', icon: '🌀', path: '/screens/spindleChart' },
   { label: 'Power Chart', icon: '⚡', path: '/screens/powerChart' },
   { label: 'Machine Details', icon: '🛠️', path: '/screens/machinedetails' },
-  { label: 'Settings', icon: '⚙️', path: '/screens/settings' }, // ✅ Added Settings
+  { label: 'Settings', icon: '⚙️', path: '/screens/settings' },
 ];
 
 export default function CustomDrawer({ onClose }: { onClose: () => void }) {
@@ -35,9 +35,9 @@ export default function CustomDrawer({ onClose }: { onClose: () => void }) {
         style: 'destructive',
         onPress: async () => {
           try {
-            await logoutUser();
+            await clearAuthStatus(); // ✅ Clear session
             onClose();
-            router.replace('../SignIn'); // ✅ Correct path
+            router.replace('/SignIn'); // ✅ Use relative path to /SignIn
           } catch (err) {
             console.error('❌ Error signing out:', err);
           }
