@@ -101,9 +101,6 @@
 
 
 
-
-
-// utils/machineDB.ts
 import * as SQLite from 'expo-sqlite';
 
 const db = SQLite.openDatabaseSync('cnc_data.db');
@@ -138,10 +135,9 @@ export const saveMachineDataOffline = async (
   spindle: number,
   rest: number,
   power: number,
-  status: string
+  status: string,
+  updatedAt: string  // ⬅️ Use updatedAt from backend (timestamp)
 ): Promise<void> => {
-  const updatedAt = new Date().toISOString();
-
   await db.runAsync(
     `INSERT OR REPLACE INTO machines (name, date, spindle_speed, rest_time, power_consumption, status, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -179,8 +175,6 @@ export const getMachineDataOffline = async (
 
   return null;
 };
-
-
 
 // ✅ Save last sync time
 export const saveLastSyncTimeToDB = async (

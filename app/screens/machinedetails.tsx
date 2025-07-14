@@ -1,19 +1,28 @@
+
 // app/screens/machinedetails.tsx
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as MediaLibrary from 'expo-media-library';
 import * as Print from 'expo-print';
 import NetInfo from '@react-native-community/netinfo';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  Alert, Platform, Pressable, ScrollView, StyleSheet,
-  Text, ToastAndroid, TouchableOpacity, View,
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  ToastAndroid,
+  TouchableOpacity,
+  View,
+  RefreshControl,
 } from 'react-native';
 import CustomDrawer from '../../components/CustomDrawer';
 import { useTheme } from '../../context/ThemeContext';
 import { saveMachineRangeOffline, getMachineRangeOffline } from '../../utils/machinedetailsDB';
 
-const API_URL = 'https://cncofflinemode.onrender.com/machines';
+const API_URL = 'https://finalapk.onrender.com/machines';
 const machineList = ['Machine 01', 'Machine 02', 'Machine 03'];
 
 export default function MachineDetails() {
@@ -26,6 +35,8 @@ export default function MachineDetails() {
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [data, setData] = useState<any[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const netInfoUnsubscribe = useRef<any>(null);
 
   const toggleDrawer = () => setDrawerOpen(!drawerOpen);
   const closeDrawer = () => setDrawerOpen(false);
@@ -33,19 +44,28 @@ export default function MachineDetails() {
   const fetchData = async () => {
     const from = fromDate.toISOString().split('T')[0];
     const to = toDate.toISOString().split('T')[0];
-
     const netState = await NetInfo.fetch();
     const isConnected = netState.isConnected && netState.isInternetReachable;
 
-    if (isConnected) {
+        if (isConnected) {
       try {
         const res = await fetch(`${API_URL}/range?name=${machine}&from=${from}&to=${to}`);
         const json = await res.json();
-        setData(json || []);
-        await saveMachineRangeOffline(json);
-        ToastAndroid.show('✅ Online Mode: Data synced', ToastAndroid.SHORT);
+
+        if (Array.isArray(json) && json.length > 0) {
+          setData(json);
+          try {
+            await saveMachineRangeOffline(json); // only try to save if valid
+          } catch (dbErr) {
+            console.error('❌ DB Save Error:', dbErr);
+          }
+          ToastAndroid.show('✅ Online Mode: Data synced', ToastAndroid.SHORT);
+        } else {
+          setData([]); // no data
+          ToastAndroid.show('⚠️ No data from server', ToastAndroid.SHORT);
+        }
       } catch (err) {
-        console.error(err);
+        console.error('❌ API Fetch Error:', err);
         Alert.alert('Error', 'Failed to fetch data');
       }
     } else {
@@ -57,7 +77,28 @@ export default function MachineDetails() {
 
   useEffect(() => {
     fetchData();
+
+    // Auto-refresh every 2 mins
+    const interval = setInterval(() => {
+      fetchData();
+    }, 2 * 60 * 1000); // 2 minutes
+
+    // Real-time online/offline switch
+    netInfoUnsubscribe.current = NetInfo.addEventListener((state) => {
+      fetchData(); // Re-fetch immediately on change
+    });
+
+    return () => {
+      clearInterval(interval);
+      if (netInfoUnsubscribe.current) netInfoUnsubscribe.current();
+    };
   }, [machine, fromDate, toDate]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+  };
 
   const generatePDF = async () => {
     if (data.length === 0) {
@@ -151,16 +192,35 @@ export default function MachineDetails() {
       </View>
 
       {showFromPicker && (
-        <DateTimePicker value={fromDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(_, selectedDate) => { setShowFromPicker(false); if (selectedDate) setFromDate(selectedDate); }} />
+        <DateTimePicker
+          value={fromDate}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(_, selectedDate) => {
+            setShowFromPicker(false);
+            if (selectedDate) setFromDate(selectedDate);
+          }}
+        />
       )}
       {showToPicker && (
-        <DateTimePicker value={toDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(_, selectedDate) => { setShowToPicker(false); if (selectedDate) setToDate(selectedDate); }} />
+        <DateTimePicker
+          value={toDate}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(_, selectedDate) => {
+            setShowToPicker(false);
+            if (selectedDate) setToDate(selectedDate);
+          }}
+        />
       )}
 
-      {/* Table */}
-      <ScrollView style={styles.tableScroll}>
+      {/* Table with Pull-to-Refresh */}
+      <ScrollView
+        style={styles.tableScroll}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#00e0ff']} />
+        }
+      >
         <View style={styles.tableHeader}>
           {['Name', 'Date', 'Spindle', 'Power', 'Rest', 'Status'].map((h, i) => (
             <Text key={i} style={styles.tableHeaderText}>{h}</Text>
