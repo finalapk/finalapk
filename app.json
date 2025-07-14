@@ -20,7 +20,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.yourname.finalapk"
+      "package": "com.finalapk.indxo"
     },
     "web": {
       "favicon": "./assets/images/indxoapkicon.png"

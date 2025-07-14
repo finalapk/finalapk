@@ -7,7 +7,7 @@ import {
   saveLastSyncTimeToDB,
 } from './machineDB';
 
-const BASE_URL = 'https://indxoapp.onrender.com';
+const BASE_URL = 'https://finalapk.onrender.com';
 
 export const fetchAndCacheMachineData = async (
   machineName: string,
@@ -29,7 +29,8 @@ export const fetchAndCacheMachineData = async (
         data.spindle_speed,
         data.rest_time,
         data.power_consumption,
-        data.status
+        data.status,
+         data.timestamp || new Date().toISOString()
       );
 
       await saveLastSyncTimeToDB(data.name, data.date);
