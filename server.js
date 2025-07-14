@@ -329,7 +329,7 @@ function getISTDate() {
 }
 
 // 🔁 Cron job every 30 seconds
-cron.schedule('*/30 * * * * *', () => {
+cron.schedule('*/30 * * * * ', () => {
   console.log('[CRON] ⏳ Auto insert triggered');
   try {
     insertMachineData();
@@ -521,15 +521,27 @@ app.get('/machines', (req, res) => {
 // ✅ Range data
 app.get('/machines/range', (req, res) => {
   const { name, from, to } = req.query;
-  db.query(
-    `SELECT * FROM machines WHERE name = ? AND date BETWEEN ? AND ? ORDER BY date ASC`,
-    [name, from, to],
-    (err, results) => {
-      if (err) return res.status(500).json({ error: 'Server error' });
-      res.json(results);
+
+  if (!name || !from || !to) {
+    return res.status(400).json({ error: 'Missing name, from, or to' });
+  }
+
+  const query = `
+    SELECT * FROM machines
+    WHERE name = ?
+    AND DATE(timestamp) BETWEEN ? AND ?
+    ORDER BY timestamp DESC
+  `;
+
+  db.query(query, [name, from, to], (err, results) => {
+    if (err) {
+      console.error('❌ Range fetch error:', err.message);
+      return res.status(500).json({ error: 'Server error' });
     }
-  );
+    res.json(results);
+  });
 });
+
 
 // ✅ All latest machines
 app.get('/machines/latest-all', (req, res) => {
