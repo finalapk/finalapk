@@ -1,4 +1,3 @@
-// // utils/machineDB.ts
 // import * as SQLite from 'expo-sqlite';
 
 // const db = SQLite.openDatabaseSync('cnc_data.db');
@@ -26,17 +25,16 @@
 //   `);
 // };
 
-// // ✅ Save or update machine data (used for offline caching)
+// // ✅ Save or update machine data for offline use
 // export const saveMachineDataOffline = async (
 //   name: string,
 //   date: string,
 //   spindle: number,
 //   rest: number,
 //   power: number,
-//   status: string
+//   status: string,
+//   updatedAt: string  // ⬅️ Use updatedAt from backend (timestamp)
 // ): Promise<void> => {
-//   const updatedAt = new Date().toISOString();
-
 //   await db.runAsync(
 //     `INSERT OR REPLACE INTO machines (name, date, spindle_speed, rest_time, power_consumption, status, updated_at)
 //      VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -58,20 +56,21 @@
 //   status: string;
 //   updated_at: string;
 // } | null> => {
-//   const result = await db.getFirstAsync<{
-//     id: number;
-//     name: string;
-//     date: string;
-//     spindle_speed: number;
-//     rest_time: number;
-//     power_consumption: number;
-//     status: string;
-//     updated_at: string;
-//   }>(
+//   const result = await db.getFirstAsync<any>(
 //     `SELECT * FROM machines WHERE name = ? AND date = ?`,
 //     [name, date]
 //   );
-//   return result ?? null;
+
+//   if (
+//     result &&
+//     typeof result.id === 'number' &&
+//     typeof result.name === 'string' &&
+//     typeof result.date === 'string'
+//   ) {
+//     return result;
+//   }
+
+//   return null;
 // };
 
 // // ✅ Save last sync time
@@ -87,7 +86,7 @@
 //   );
 // };
 
-// // ✅ Get last sync time (for display or logic)
+// // ✅ Get last sync time
 // export const getLastSyncTimeFromDB = async (
 //   machine: string,
 //   date: string
@@ -101,11 +100,14 @@
 
 
 
+
+
 import * as SQLite from 'expo-sqlite';
 
+// ✅ Open or create the SQLite database file
 const db = SQLite.openDatabaseSync('cnc_data.db');
 
-// ✅ Setup database tables
+// ✅ Set up local DB with 2 tables: machines and sync_log
 export const setupMachineDB = async () => {
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS machines (
@@ -128,7 +130,7 @@ export const setupMachineDB = async () => {
   `);
 };
 
-// ✅ Save or update machine data for offline use
+// ✅ Save or update machine data (offline)
 export const saveMachineDataOffline = async (
   name: string,
   date: string,
@@ -136,16 +138,17 @@ export const saveMachineDataOffline = async (
   rest: number,
   power: number,
   status: string,
-  updatedAt: string  // ⬅️ Use updatedAt from backend (timestamp)
+  updatedAt: string
 ): Promise<void> => {
   await db.runAsync(
-    `INSERT OR REPLACE INTO machines (name, date, spindle_speed, rest_time, power_consumption, status, updated_at)
+    `INSERT OR REPLACE INTO machines 
+      (name, date, spindle_speed, rest_time, power_consumption, status, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [name, date, spindle, rest, power, status, updatedAt]
   );
 };
 
-// ✅ Get machine data (used in offline mode)
+// ✅ Get saved machine data (offline mode)
 export const getMachineDataOffline = async (
   name: string,
   date: string
@@ -176,7 +179,7 @@ export const getMachineDataOffline = async (
   return null;
 };
 
-// ✅ Save last sync time
+// ✅ Save latest sync time to local DB
 export const saveLastSyncTimeToDB = async (
   machine: string,
   date: string
@@ -189,7 +192,7 @@ export const saveLastSyncTimeToDB = async (
   );
 };
 
-// ✅ Get last sync time
+// ✅ Get latest sync time for a specific machine and date
 export const getLastSyncTimeFromDB = async (
   machine: string,
   date: string

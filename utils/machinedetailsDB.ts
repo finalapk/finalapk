@@ -1,10 +1,15 @@
-// // utils/machineDB.ts
+
+
 // import * as SQLite from 'expo-sqlite';
 
 // const db = SQLite.openDatabaseSync('cnc_data.db');
 
-// // ✅ Create tables if not exist
+// // ✅ Create table with proper UNIQUE constraint
 // export const setupMachineDB = async () => {
+//   // await db.execAsync(`
+//   //   DROP TABLE IF EXISTS machines;
+//   // `); // only for development; remove in production
+
 //   await db.execAsync(`
 //     CREATE TABLE IF NOT EXISTS machines (
 //       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -14,33 +19,45 @@
 //       rest_time INTEGER,
 //       power_consumption REAL,
 //       status TEXT,
-//       updated_at TEXT
+//       updated_at TEXT,
+//       UNIQUE(name, date)
 //     );
 //   `);
 // };
 
-// // ✅ Save range of machine data for offline
+// // ✅ Save or update based on (name, date)
 // export const saveMachineRangeOffline = async (data: any[]) => {
 //   const updatedAt = new Date().toISOString();
 //   for (const item of data) {
-//     await db.runAsync(`
-//       INSERT OR REPLACE INTO machines 
-//       (name, date, spindle_speed, rest_time, power_consumption, status, updated_at)
-//       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-//       [
-//         item.name,
-//         item.date,
-//         item.spindle_speed,
-//         item.rest_time,
-//         item.power_consumption,
-//         item.status,
-//         updatedAt
-//       ]
-//     );
+//     try {
+//       await db.runAsync(
+//         `
+//         INSERT INTO machines (name, date, spindle_speed, rest_time, power_consumption, status, updated_at)
+//         VALUES (?, ?, ?, ?, ?, ?, ?)
+//         ON CONFLICT(name, date) DO UPDATE SET
+//           spindle_speed=excluded.spindle_speed,
+//           rest_time=excluded.rest_time,
+//           power_consumption=excluded.power_consumption,
+//           status=excluded.status,
+//           updated_at=excluded.updated_at;
+//         `,
+//         [
+//           item.name,
+//           item.date,
+//           item.spindle_speed,
+//           item.rest_time,
+//           item.power_consumption,
+//           item.status,
+//           updatedAt,
+//         ]
+//       );
+//     } catch (err: any) {
+//       console.error(`❌ Error saving offline data for ${item.name} - ${item.date}:`, err.message);
+//     }
 //   }
 // };
 
-// // ✅ Get data from SQLite for a range
+// // ✅ Fetch range of offline data
 // export const getMachineRangeOffline = async (
 //   name: string,
 //   from: string,
@@ -53,18 +70,40 @@
 //   return rows || [];
 // };
 
+// // ✅ Auto-sync latest 5 days of data
+// export const syncLatestMachineData = async () => {
+//   const machines = ['Machine 01', 'Machine 02', 'Machine 03'];
+//   const today = new Date();
+
+//   for (const machine of machines) {
+//     for (let i = 0; i < 5; i++) {
+//       const date = new Date(today);
+//       date.setDate(today.getDate() - i);
+//       const dateStr = date.toISOString().split('T')[0];
+
+//       try {
+//         const res = await fetch(`https://finalapk.onrender.com/machines?name=${machine}&date=${dateStr}`);
+//         const json = await res.json();
+//         if (json?.length > 0) {
+//           await saveMachineRangeOffline(json);
+//           console.log(`✅ Synced ${machine} - ${dateStr}`);
+//         }
+//       } catch (err: any) {
+//         console.error(`❌ Failed sync for ${machine} - ${dateStr}`, err.message);
+//       }
+//     }
+//   }
+// };
+
+
 
 
 import * as SQLite from 'expo-sqlite';
 
 const db = SQLite.openDatabaseSync('cnc_data.db');
 
-// ✅ Create table with proper UNIQUE constraint
+// ✅ Setup: Create table with UNIQUE constraint for offline range sync
 export const setupMachineDB = async () => {
-  // await db.execAsync(`
-  //   DROP TABLE IF EXISTS machines;
-  // `); // only for development; remove in production
-
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS machines (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,9 +119,10 @@ export const setupMachineDB = async () => {
   `);
 };
 
-// ✅ Save or update based on (name, date)
+// ✅ Insert or update a batch of machine records (offline mode)
 export const saveMachineRangeOffline = async (data: any[]) => {
   const updatedAt = new Date().toISOString();
+
   for (const item of data) {
     try {
       await db.runAsync(
@@ -112,7 +152,7 @@ export const saveMachineRangeOffline = async (data: any[]) => {
   }
 };
 
-// ✅ Fetch range of offline data
+// ✅ Fetch range of data for a machine between 2 dates
 export const getMachineRangeOffline = async (
   name: string,
   from: string,
@@ -125,7 +165,7 @@ export const getMachineRangeOffline = async (
   return rows || [];
 };
 
-// ✅ Auto-sync latest 5 days of data
+// ✅ Auto-sync latest 5 days of data from server for all machines
 export const syncLatestMachineData = async () => {
   const machines = ['Machine 01', 'Machine 02', 'Machine 03'];
   const today = new Date();
@@ -137,9 +177,10 @@ export const syncLatestMachineData = async () => {
       const dateStr = date.toISOString().split('T')[0];
 
       try {
-        const res = await fetch(`https://finalapk.onrender.com/machines?name=${machine}&date=${dateStr}`);
+        const res = await fetch(`https://finalapk.onrender.com/machines?name=${encodeURIComponent(machine)}&date=${dateStr}`);
         const json = await res.json();
-        if (json?.length > 0) {
+
+        if (Array.isArray(json) && json.length > 0) {
           await saveMachineRangeOffline(json);
           console.log(`✅ Synced ${machine} - ${dateStr}`);
         }
